@@ -381,6 +381,51 @@ export function registerTools(server: McpServer, tn: Tiendanube) {
     },
   );
 
+  // ---------- Archivos del sitio (solo lectura) ----------
+  const ALLOWED_HOSTS = [
+    /(^|\.)tiendakay\.com\.ar$/,
+    /(^|\.)mitiendanube\.com$/,
+    /(^|\.)nuvemshop\.com\.br$/,
+    /\.cloudfront\.net$/,
+    /^fonts\.(googleapis|gstatic)\.com$/,
+  ];
+  server.registerTool(
+    "fetch_site_file",
+    {
+      title: "Traer archivo del sitio",
+      description:
+        "Descarga un archivo público del sitio de KAY o de los CDN de Tiendanube (HTML, CSS, JS, fuentes, imágenes). Texto: devuelve el contenido. Binarios: devuelve base64. Solo lectura, limitado a dominios de KAY/Tiendanube/Google Fonts.",
+      inputSchema: {
+        url: z.string().url(),
+        offset: z.number().int().min(0).optional().describe("Para textos largos: desde qué carácter devolver"),
+        max_chars: z.number().int().min(1000).max(200000).optional().describe("Máximo de caracteres de texto (default 60000)"),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ url, offset, max_chars }) => {
+      try {
+        const u = new URL(url.startsWith("//") ? `https:${url}` : url);
+        if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error("Solo http/https");
+        if (!ALLOWED_HOSTS.some((r) => r.test(u.hostname))) throw new Error(`Dominio no permitido: ${u.hostname}`);
+        const res = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0 (KAY MCP site reader)" }, redirect: "follow" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const contentType = res.headers.get("content-type") ?? "application/octet-stream";
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length > 6 * 1024 * 1024) throw new Error(`Archivo demasiado grande (${buf.length} bytes)`);
+        const isText = /^(text\/|application\/(json|javascript|xml|x-javascript))|image\/svg/.test(contentType);
+        if (isText) {
+          const text = buf.toString("utf8");
+          const start = offset ?? 0;
+          const max = max_chars ?? 60000;
+          return ok({ url: u.toString(), contentType, length: text.length, offset: start, text: text.slice(start, start + max) });
+        }
+        return ok({ url: u.toString(), contentType, bytes: buf.length, base64: buf.toString("base64") });
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
   // ---------- Acceso genérico ----------
   server.registerTool(
     "tiendanube_api",
