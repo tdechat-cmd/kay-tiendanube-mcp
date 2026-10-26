@@ -554,11 +554,21 @@ export function registerTools(server: McpServer, tn: Tiendanube) {
           .regex(/^(v1|\d{4}-\d{2})$/)
           .optional()
           .describe("Versión de la API: 'v1' (por defecto) o una fecha como '2025-03'"),
+        body_from_asset: z
+          .string()
+          .regex(/^[\w-]+(\/[\w.-]+)*\.json$/)
+          .optional()
+          .describe("Ruta de un .json dentro de public/ para usar como body (para cuerpos largos, ej. el HTML de una página)"),
       },
       annotations: { destructiveHint: true },
     },
-    async ({ method, path, query, body, api_version }) => {
+    async ({ method, path, query, body, api_version, body_from_asset }) => {
       try {
+        if (body_from_asset) {
+          const { readFile } = await import("node:fs/promises");
+          const file = new URL(`../public/${body_from_asset}`, import.meta.url);
+          body = JSON.parse(await readFile(file, "utf8"));
+        }
         const { data, total } = await tn.request(method, path, { query, body, apiVersion: api_version });
         return ok(total !== undefined ? { total, data } : data);
       } catch (e) {
