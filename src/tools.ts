@@ -426,6 +426,32 @@ export function registerTools(server: McpServer, tn: Tiendanube) {
     },
   );
 
+  // ---------- Imágenes públicas del servidor ----------
+  server.registerTool(
+    "list_assets",
+    {
+      title: "Listar imágenes públicas",
+      description:
+        "Lista las imágenes de la carpeta public/ del servidor con su URL pública (para usarlas en páginas de la tienda).",
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      try {
+        const { readdir } = await import("node:fs/promises");
+        const { fileURLToPath } = await import("node:url");
+        const root = fileURLToPath(new URL("../public", import.meta.url));
+        const domain = process.env.PUBLIC_BASE_URL ?? (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : "");
+        const entries = await readdir(root, { recursive: true, withFileTypes: true });
+        const files = entries
+          .filter((e) => e.isFile())
+          .map((e) => `${e.parentPath ?? (e as any).path}/${e.name}`.slice(root.length).replace(/\\/g, "/"));
+        return ok({ base_url: domain || null, assets: files.map((f) => `${domain}/assets${f}`) });
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
   // ---------- Páginas de contenido (API 2025-03) ----------
   // Requieren los permisos read_content / write_content en la app.
   const PAGES_API = "2025-03";
