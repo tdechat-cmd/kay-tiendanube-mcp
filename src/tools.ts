@@ -426,24 +426,114 @@ export function registerTools(server: McpServer, tn: Tiendanube) {
     },
   );
 
+  // ---------- Páginas de contenido (API 2025-03) ----------
+  // Requieren los permisos read_content / write_content en la app.
+  const PAGES_API = "2025-03";
+
+  server.registerTool(
+    "list_pages",
+    {
+      title: "Listar páginas",
+      description: "Lista las páginas de contenido de la tienda (Sobre Kay, FAQs, etc.) con id, nombre y handle.",
+      inputSchema: { ...pageArgs },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ page, per_page }) => {
+      try {
+        const { data } = await tn.request<Json>("GET", "/pages", {
+          apiVersion: PAGES_API,
+          query: { page: page ?? 1, per_page: per_page ?? 50 },
+        });
+        const list: Json[] = data?.pages?.results ?? data?.results ?? (Array.isArray(data) ? data : []);
+        return ok({
+          total: data?.pages?.total ?? list.length,
+          pages: list.map((p) => ({ id: p.id, name: t(p.name), handle: t(p.handle), published: p.published, updated_at: p.updated_at })),
+        });
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_page",
+    {
+      title: "Ver página",
+      description: "Devuelve una página de contenido completa (incluye el HTML).",
+      inputSchema: { page_id: z.number().int() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ page_id }) => {
+      try {
+        const { data } = await tn.request<Json>("GET", `/pages/${page_id}`, { apiVersion: PAGES_API });
+        return ok(data);
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "update_page",
+    {
+      title: "Actualizar página",
+      description:
+        "Reemplaza el título y/o el contenido HTML de una página de contenido. Cambia la página publicada en la tienda: leerla antes con get_page. Si la API rechaza el formato simple, usar `body` para mandar el cuerpo exacto.",
+      inputSchema: {
+        page_id: z.number().int(),
+        title: z.string().optional(),
+        content: z.string().optional().describe("HTML completo de la página"),
+        language: z.string().optional().describe("Código de idioma, por defecto es_AR"),
+        body: z.any().optional().describe("Cuerpo crudo a enviar (reemplaza title/content)"),
+      },
+      annotations: { destructiveHint: true, idempotentHint: true },
+    },
+    async ({ page_id, title, content, language, body }) => {
+      try {
+        const lang = language ?? "es_AR";
+        const payload =
+          body ??
+          {
+            page: {
+              i18n: {
+                [lang]: {
+                  ...(title !== undefined ? { title } : {}),
+                  ...(content !== undefined ? { content } : {}),
+                },
+              },
+            },
+          };
+        const { data } = await tn.request<Json>("PUT", `/pages/${page_id}`, { apiVersion: PAGES_API, body: payload });
+        return ok(data);
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+
   // ---------- Acceso genérico ----------
   server.registerTool(
     "tiendanube_api",
     {
       title: "Llamada directa a la API",
       description:
-        "Llamada genérica a cualquier endpoint de la API de Tiendanube cuando no hay una herramienta específica (ej. GET /shipping_carriers, GET /products/123/images, POST /products). path es relativo a la tienda, ej. '/scripts'. Usar con cuidado en métodos de escritura.",
+        "Llamada genérica a cualquier endpoint de la API de Tiendanube cuando no hay una herramienta específica (ej. GET /shipping_carriers, GET /products/123/images, POST /products). path es relativo a la tienda, ej. '/scripts'. api_version permite usar endpoints nuevos (ej. '2025-03' para /pages). Usar con cuidado en métodos de escritura.",
       inputSchema: {
         method: z.enum(["GET", "POST", "PUT", "DELETE"]),
         path: z.string().startsWith("/"),
         query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
         body: z.any().optional(),
+        api_version: z
+          .string()
+          .regex(/^(v1|\d{4}-\d{2})$/)
+          .optional()
+          .describe("Versión de la API: 'v1' (por defecto) o una fecha como '2025-03'"),
       },
       annotations: { destructiveHint: true },
     },
-    async ({ method, path, query, body }) => {
+    async ({ method, path, query, body, api_version }) => {
       try {
-        const { data, total } = await tn.request(method, path, { query, body });
+        const { data, total } = await tn.request(method, path, { query, body, apiVersion: api_version });
         return ok(total !== undefined ? { total, data } : data);
       } catch (e) {
         return fail(e);

@@ -16,7 +16,11 @@ Servidor MCP que conecta Claude con la tienda **KAY** (tiendakay.com.ar) a trav�
 | `list_orders` / `get_order` | Pedidos con filtros por estado y fecha |
 | `list_customers` | Clientes |
 | `list_coupons` / `create_coupon` | Cupones de descuento |
-| `tiendanube_api` | Llamada directa a cualquier endpoint de la API (para lo que no tenga herramienta propia) |
+| `list_pages` / `get_page` / `update_page` | Páginas de contenido (Sobre Kay, FAQs…). Usan la API `2025-03` y requieren los permisos `read_content` / `write_content` |
+| `fetch_site_file` | Lee archivos públicos del sitio y de los CDN de Tiendanube |
+| `tiendanube_api` | Llamada directa a cualquier endpoint de la API (para lo que no tenga herramienta propia). Acepta `api_version` (ej. `2025-03`) |
+
+Las imágenes en `public/` se sirven en `https://<tu-dominio-railway>/assets/...` para usarlas en las páginas de la tienda.
 
 ## Variables de entorno (Railway → servicio → Variables)
 

@@ -1,5 +1,6 @@
 import express, { type Request, type Response } from "express";
 import { timingSafeEqual } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Tiendanube, exchangeCode } from "./tiendanube.js";
@@ -42,6 +43,16 @@ app.get("/", (_req, res) => {
     ),
   );
 });
+
+// Imágenes públicas que usan las páginas de la tienda (ej. /assets/sobre-kay/kay-bowl.jpg).
+app.use(
+  "/assets",
+  express.static(fileURLToPath(new URL("../public", import.meta.url)), {
+    maxAge: "30d",
+    index: false,
+    setHeaders: (res) => res.setHeader("Access-Control-Allow-Origin", "*"),
+  }),
+);
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, storeConfigured: Boolean(env.storeId && env.accessToken) });

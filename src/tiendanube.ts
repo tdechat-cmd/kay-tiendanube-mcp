@@ -20,16 +20,16 @@ export class TiendanubeError extends Error {
 export class Tiendanube {
   constructor(private cfg: TiendanubeConfig) {}
 
-  get baseUrl() {
-    return `https://api.tiendanube.com/${this.cfg.apiVersion}/${this.cfg.storeId}`;
+  baseUrl(apiVersion = this.cfg.apiVersion) {
+    return `https://api.tiendanube.com/${apiVersion}/${this.cfg.storeId}`;
   }
 
   async request<T = unknown>(
     method: "GET" | "POST" | "PUT" | "DELETE",
     path: string,
-    opts: { query?: Record<string, unknown>; body?: unknown } = {},
+    opts: { query?: Record<string, unknown>; body?: unknown; apiVersion?: string } = {},
   ): Promise<{ data: T; total?: number }> {
-    const url = new URL(this.baseUrl + (path.startsWith("/") ? path : `/${path}`));
+    const url = new URL(this.baseUrl(opts.apiVersion) + (path.startsWith("/") ? path : `/${path}`));
     for (const [k, v] of Object.entries(opts.query ?? {})) {
       if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
     }
